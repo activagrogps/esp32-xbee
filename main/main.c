@@ -23,6 +23,7 @@
 #include <core_dump.h>
 #include <esp_ota_ops.h>
 #include <stream_stats.h>
+#include <mdns.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_system.h"
@@ -39,7 +40,20 @@
 #include "tasks.h"
 
 static const char *TAG = "MAIN";
-
+static void mdns_init_service() {
+    ESP_LOGI(TAG, "Initializing mDNS service");
+    
+    esp_err_t err = mdns_init();
+    if (err) {
+        ESP_LOGE(TAG, "mDNS Init failed: %d", err);
+        return;
+    }
+    
+    mdns_hostname_set("esp32-rtk");
+    mdns_instance_name_set("ESP32-RTK-Config");
+    
+    ESP_LOGI(TAG, "mDNS initialized successfully");
+}
 static char *reset_reason_name(esp_reset_reason_t reason);
 
 static void reset_button_task() {
