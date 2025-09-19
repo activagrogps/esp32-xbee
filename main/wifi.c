@@ -259,6 +259,7 @@ static void handle_sta_lost_ip(void *esp_netif, esp_event_base_t base, int32_t e
     uart_nmea("$PESP,WIFI,STA,IP_LOST");
 
     xEventGroupClearBits(wifi_event_group, WIFI_STA_GOT_IPV4_BIT);
+    mdns_register_http_service();
 }
 
 static void handle_ap_sta_ip_assigned(void *esp_netif, esp_event_base_t base, int32_t event_id, void *event_data) {
