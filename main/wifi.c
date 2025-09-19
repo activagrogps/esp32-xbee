@@ -61,6 +61,20 @@ static wifi_sta_list_t ap_sta_list;
 static esp_netif_t *esp_netif_ap;
 static esp_netif_t *esp_netif_sta;
 
+static void mdns_register_http_service() {
+    ESP_LOGI(TAG, "Registering HTTP service with mDNS");
+    
+    // Register HTTP service for web interface discovery
+    esp_err_t err = mdns_service_add("ESP32-RTK-Config", "_http", "_tcp", 80, NULL, 0);
+    if (err) {
+        ESP_LOGE(TAG, "Failed to register HTTP service with mDNS: %d", err);
+        return;
+    }
+    
+    ESP_LOGI(TAG, "HTTP service registered successfully with mDNS");
+    uart_nmea("$PESP,MDNS,HTTP_SERVICE_REGISTERED");
+}
+
 static void wifi_sta_status_task(void *ctx) {
     uint8_t rssi_duty = 0;
     while (true) {
@@ -241,6 +255,9 @@ static void handle_sta_got_ip(void *esp_netif, esp_event_base_t base, int32_t ev
             IP2STR(&event->ip_info.gw));
 
     xEventGroupSetBits(wifi_event_group, WIFI_STA_GOT_IPV4_BIT);
+    
+    // Register mDNS HTTP service when we get IP in STA mode
+    mdns_register_http_service();
 }
 
 static void handle_sta_lost_ip(void *esp_netif, esp_event_base_t base, int32_t event_id, void *event_data) {

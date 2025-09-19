@@ -16,6 +16,7 @@ idf_component_register(SRCS "main.c"
 		"interface/socket_client.c"
 		"interface/socket_server.c"
 		"protocol/nmea.c"
-        INCLUDE_DIRS "include")
+        INCLUDE_DIRS "include"
+        REQUIRES mdns)
 
 spiffs_create_partition_image(www ../www FLASH_IN_PROJECT)

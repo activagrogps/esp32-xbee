@@ -23,6 +23,7 @@
 #include <core_dump.h>
 #include <esp_ota_ops.h>
 #include <stream_stats.h>
+#include <mdns.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_system.h"
@@ -41,6 +42,25 @@
 static const char *TAG = "MAIN";
 
 static char *reset_reason_name(esp_reset_reason_t reason);
+
+static void mdns_init_service() {
+    ESP_LOGI(TAG, "Initializing mDNS service");
+    
+    // Initialize mDNS
+    esp_err_t err = mdns_init();
+    if (err) {
+        ESP_LOGE(TAG, "mDNS Init failed: %d", err);
+        return;
+    }
+    
+    // Set mDNS hostname (will be esp32-rtk.local)
+    mdns_hostname_set("esp32-rtk");
+    
+    // Set default instance name
+    mdns_instance_name_set("ESP32 RTK Configuration");
+    
+    ESP_LOGI(TAG, "mDNS initialized successfully");
+}
 
 static void reset_button_task() {
     QueueHandle_t button_queue = button_init(PIN_BIT(GPIO_NUM_0));
@@ -90,18 +110,18 @@ void app_main()
 
     uart_nmea("$PESP,INIT,START,%s,%s", app_desc->version, reset_reason_name(reset_reason));
 
-    ESP_LOGI(TAG, "╔══════════════════════════════════════════════╗");
-    ESP_LOGI(TAG, "║ ESP32 XBee %-33s "                          "║", app_desc->version);
-    ESP_LOGI(TAG, "╠══════════════════════════════════════════════╣");
-    ESP_LOGI(TAG, "║ Compiled: %8s %-25s "                       "║", app_desc->time, app_desc->date);
-    ESP_LOGI(TAG, "║ ELF SHA256: %-32s "                         "║", elf_buffer);
-    ESP_LOGI(TAG, "║ ESP-IDF: %-35s "                            "║", app_desc->idf_ver);
-    ESP_LOGI(TAG, "╟──────────────────────────────────────────────╢");
-    ESP_LOGI(TAG, "║ Reset reason: %-30s "                       "║", reset_reason_name(reset_reason));
-    ESP_LOGI(TAG, "╟──────────────────────────────────────────────╢");
-    ESP_LOGI(TAG, "║ Author: Nebojša Cvetković                    ║");
-    ESP_LOGI(TAG, "║ Source: https://github.com/nebkat/esp32-xbee ║");
-    ESP_LOGI(TAG, "╚══════════════════════════════════════════════╝");
+    ESP_LOGI(TAG, "â•"â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—");
+    ESP_LOGI(TAG, "â•' ESP32 XBee %-33s "                          "â•'", app_desc->version);
+    ESP_LOGI(TAG, "â• â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•£");
+    ESP_LOGI(TAG, "â•' Compiled: %8s %-25s "                       "â•'", app_desc->time, app_desc->date);
+    ESP_LOGI(TAG, "â•' ELF SHA256: %-32s "                         "â•'", elf_buffer);
+    ESP_LOGI(TAG, "â•' ESP-IDF: %-35s "                            "â•'", app_desc->idf_ver);
+    ESP_LOGI(TAG, "â•Ÿâ"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â•¢");
+    ESP_LOGI(TAG, "â•' Reset reason: %-30s "                       "â•'", reset_reason_name(reset_reason));
+    ESP_LOGI(TAG, "â•Ÿâ"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â•¢");
+    ESP_LOGI(TAG, "â•' Author: NebojÅ¡a CvetkoviÄ‡                    â•'");
+    ESP_LOGI(TAG, "â•' Source: https://github.com/nebkat/esp32-xbee â•'");
+    ESP_LOGI(TAG, "â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•");
 
     esp_event_loop_create_default();
 
@@ -120,9 +140,11 @@ void app_main()
         status_led->active = true;
     }
 
-
     net_init();
     wifi_init();
+
+    // Initialize mDNS after WiFi but before services
+    mdns_init_service();
 
     web_server_init();
 
@@ -139,8 +161,6 @@ void app_main()
 
     sntp_setoperatingmode(SNTP_OPMODE_POLL);
     sntp_setservername(0, "pool.ntp.org");
-    sntp_set_sync_mode(SNTP_SYNC_MODE_SMOOTH);
-    sntp_set_time_sync_notification_cb(sntp_time_set_handler);
     sntp_init();
 
 #ifdef DEBUG_HEAP

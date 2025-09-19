@@ -1,0 +1,79 @@
+name: Build ESP-IDF Project
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive  # In case you have git submodules
+
+      - name: Build Project
+        run: |
+          docker run --rm -v $(pwd):/workspace espressif/idf:v4.4 /bin/bash -c "
+            cd /workspace && 
+            . \$IDF_PATH/export.sh && 
+            idf.py build
+          "
+
+      - name: Verify Build Output
+        run: |
+          echo "Checking if all required firmware files exist..."
+          ls -la build/
+          test -f build/esp32-xbee.bin || (echo "Main firmware missing!" && exit 1)
+          test -f build/bootloader/bootloader.bin || (echo "Bootloader missing!" && exit 1)
+          test -f build/partition_table/partition-table.bin || (echo "Partition table missing!" && exit 1)
+          test -f build/www.bin || (echo "Web interface missing!" && exit 1)
+          echo "All firmware files present ✓"
+
+      - name: Collect All Firmware Files
+        run: |
+          mkdir -p firmware-package
+          # Copy main firmware
+          cp build/esp32-xbee.bin firmware-package/
+          # Copy bootloader
+          cp build/bootloader/bootloader.bin firmware-package/
+          # Copy partition table
+          cp build/partition_table/partition-table.bin firmware-package/
+          # Copy web interface files
+          cp build/www.bin firmware-package/
+          # Create flash script for convenience
+          cat > firmware-package/flash.sh << 'EOF'
+          #!/bin/bash
+          # Flash script for ESP32-XBee with mDNS support
+          # Usage: ./flash.sh [PORT]
+          PORT=${1:-/dev/ttyUSB0}
+          echo "Flashing ESP32-XBee to $PORT..."
+          esptool.py --chip esp32 --port $PORT --baud 921600 write_flash \
+            0x1000 bootloader.bin \
+            0x10000 esp32-xbee.bin \
+            0x8000 partition-table.bin \
+            0x110000 www.bin
+          echo "Flash complete! Your ESP32 now has mDNS support."
+          echo "It will be discoverable as: esp32-rtk.local"
+          EOF
+          chmod +x firmware-package/flash.sh
+          # List files for verification
+          echo "Firmware package contents:"
+          ls -la firmware-package/
+          # Show file sizes
+          echo "File sizes:"
+          du -h firmware-package/*
+
+      - name: Upload Complete Firmware Package
+        uses: actions/upload-artifact@v4
+        with:
+          name: esp32-firmware-with-mdns
+          path: firmware-package/
+          retention-days: 30
