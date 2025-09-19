@@ -39,6 +39,17 @@ static EventGroupHandle_t wifi_event_group;
 const int WIFI_STA_GOT_IPV4_BIT = BIT0;
 const int WIFI_STA_GOT_IPV6_BIT = BIT1;
 const int WIFI_AP_STA_CONNECTED_BIT = BIT2;
+static void mdns_register_http_service() {
+    ESP_LOGI(TAG, "Registering HTTP service with mDNS");
+    
+    esp_err_t err = mdns_service_add("ESP32-RTK-Config", "_http", "_tcp", 80, NULL, 0);
+    if (err) {
+        ESP_LOGE(TAG, "Failed to register HTTP service: %d", err);
+        return;
+    }
+    
+    ESP_LOGI(TAG, "HTTP service registered successfully");
+}
 
 static TaskHandle_t sta_status_task = NULL;
 static TaskHandle_t sta_reconnect_task = NULL;
