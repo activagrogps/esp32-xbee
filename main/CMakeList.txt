@@ -1,4 +1,4 @@
-df_component_register(SRCS "main.c"
+idf_component_register(SRCS "main.c"
 		"config.c"
 		"core_dump.c"
 		"log.c"
@@ -17,6 +17,8 @@ df_component_register(SRCS "main.c"
 		"interface/socket_server.c"
 		"protocol/nmea.c"
         INCLUDE_DIRS "include"
-        REQUIRES mdns app_update spi_flash nvs_flash wifi_provisioning spiffs esp_http_server cjson esp_wifi esp_netif)
+        REQUIRES mdns app_update spi_flash nvs_flash wifi_provisioning spiffs esp_http_server cjson esp_wifi esp_netif
+                 freertos esp_event driver lwip esp_timer log heap esp_system esp_rom hal soc vfs)
+
 
 spiffs_create_partition_image(www ../www FLASH_IN_PROJECT)
