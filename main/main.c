@@ -110,18 +110,7 @@ void app_main()
 
     uart_nmea("$PESP,INIT,START,%s,%s", app_desc->version, reset_reason_name(reset_reason));
 
-    ESP_LOGI(TAG, "â•"â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—");
-    ESP_LOGI(TAG, "â•' ESP32 XBee %-33s "                          "â•'", app_desc->version);
-    ESP_LOGI(TAG, "â• â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•£");
-    ESP_LOGI(TAG, "â•' Compiled: %8s %-25s "                       "â•'", app_desc->time, app_desc->date);
-    ESP_LOGI(TAG, "â•' ELF SHA256: %-32s "                         "â•'", elf_buffer);
-    ESP_LOGI(TAG, "â•' ESP-IDF: %-35s "                            "â•'", app_desc->idf_ver);
-    ESP_LOGI(TAG, "â•Ÿâ"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â•¢");
-    ESP_LOGI(TAG, "â•' Reset reason: %-30s "                       "â•'", reset_reason_name(reset_reason));
-    ESP_LOGI(TAG, "â•Ÿâ"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â•¢");
-    ESP_LOGI(TAG, "â•' Author: NebojÅ¡a CvetkoviÄ‡                    â•'");
-    ESP_LOGI(TAG, "â•' Source: https://github.com/nebkat/esp32-xbee â•'");
-    ESP_LOGI(TAG, "â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•");
+  
 
     esp_event_loop_create_default();
 
