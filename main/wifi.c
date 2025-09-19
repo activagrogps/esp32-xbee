@@ -61,8 +61,24 @@ static wifi_sta_list_t ap_sta_list;
 static esp_netif_t *esp_netif_ap;
 static esp_netif_t *esp_netif_sta;
 
+static void mdns_print_status() {
+    ESP_LOGI(TAG, "=== mDNS Status ===");
+    
+    // Check if mDNS is initialized
+    char hostname[32];
+    if (mdns_hostname_get(hostname, sizeof(hostname)) == ESP_OK) {
+        ESP_LOGI(TAG, "mDNS hostname: %s.local", hostname);
+        uart_nmea("$PESP,MDNS,STATUS,ACTIVE,%s", hostname);
+    } else {
+        ESP_LOGE(TAG, "mDNS not initialized or hostname not set");
+        uart_nmea("$PESP,MDNS,STATUS,INACTIVE");
+    }
+    
+    ESP_LOGI(TAG, "==================");
+}
+
 static void mdns_register_http_service() {
-    ESP_LOGI(TAG, "Registering HTTP service with mDNS");
+    ESP_LOGI(TAG, "Registering HTTP service with mDNS for STA mode");
     
     // Register HTTP service for web interface discovery
     esp_err_t err = mdns_service_add("ESP32-RTK-Config", "_http", "_tcp", 80, NULL, 0);
@@ -73,6 +89,26 @@ static void mdns_register_http_service() {
     
     ESP_LOGI(TAG, "HTTP service registered successfully with mDNS");
     uart_nmea("$PESP,MDNS,HTTP_SERVICE_REGISTERED");
+    
+    // Print status for verification
+    mdns_print_status();
+}
+
+static void mdns_register_http_service_ap() {
+    ESP_LOGI(TAG, "Registering HTTP service with mDNS for AP mode");
+    
+    // Register HTTP service for web interface discovery in AP mode
+    esp_err_t err = mdns_service_add("ESP32-RTK-Config", "_http", "_tcp", 80, NULL, 0);
+    if (err) {
+        ESP_LOGE(TAG, "Failed to register HTTP service with mDNS in AP mode: %d", err);
+        return;
+    }
+    
+    ESP_LOGI(TAG, "HTTP service registered successfully with mDNS for AP mode");
+    uart_nmea("$PESP,MDNS,HTTP_SERVICE_REGISTERED_AP");
+    
+    // Print status for verification
+    mdns_print_status();
 }
 
 static void wifi_sta_status_task(void *ctx) {
@@ -199,6 +235,10 @@ static void handle_ap_start(void *esp_netif, esp_event_base_t base, int32_t even
     }
 
     ap_active = true;
+    
+    // Register mDNS HTTP service for AP mode
+    // This ensures mDNS works even when device is only in AP mode
+    mdns_register_http_service_ap();
 }
 
 static void handle_ap_stop(void *esp_netif, esp_event_base_t base, int32_t event_id, void *event_data) {
