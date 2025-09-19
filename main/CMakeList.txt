@@ -20,5 +20,4 @@ idf_component_register(SRCS "main.c"
         REQUIRES mdns app_update spi_flash nvs_flash wifi_provisioning spiffs esp_http_server cjson esp_wifi esp_netif
                  freertos esp_event driver lwip esp_timer log heap esp_system esp_rom hal soc vfs)
 
-
 spiffs_create_partition_image(www ../www FLASH_IN_PROJECT)
