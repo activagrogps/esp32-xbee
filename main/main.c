@@ -137,6 +137,7 @@ void app_main()
 
     net_init();
     wifi_init();
+    mdns_init_service();
 
     web_server_init();
 
