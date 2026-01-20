@@ -28,17 +28,23 @@
 #include "esp_netif.h"
 #include "lwip/inet.h"
 
-// Fix for missing macros in ESP-IDF v5
-#ifndef esp_netif_htonl
-#define esp_netif_htonl(x) lwip_htonl(x)
-#endif
+// --- FIX START: CONSTANT MACROS FOR COMPILER (ESP-IDF v5) ---
+// We use bitwise shifts so the compiler treats these as constants, not function calls.
 
 #ifndef esp_netif_ip4_makeu32
-#define esp_netif_ip4_makeu32(a,b,c,d) (((uint32_t)((a) & 0xff) << 24) | \
-                                       ((uint32_t)((b) & 0xff) << 16) | \
-                                       ((uint32_t)((c) & 0xff) << 8)  | \
-                                       (uint32_t)((d) & 0xff))
+#define esp_netif_ip4_makeu32(a,b,c,d) (((uint32_t)((a) & 0xff)) | \
+                                       ((uint32_t)((b) & 0xff) << 8) | \
+                                       ((uint32_t)((c) & 0xff) << 16) | \
+                                       ((uint32_t)((d) & 0xff) << 24))
 #endif
+
+#ifndef esp_netif_htonl
+#define esp_netif_htonl(x) ((((x) & 0x000000FF) << 24) | \
+                            (((x) & 0x0000FF00) << 8)  | \
+                            (((x) & 0x00FF0000) >> 8)  | \
+                            (((x) & 0xFF000000) >> 24))
+#endif
+// --- FIX END ---
 
 static const char *TAG = "CONFIG";
 static const char *STORAGE = "config";
