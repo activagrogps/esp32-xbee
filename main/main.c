@@ -30,8 +30,6 @@
 #include "esp_log.h"
 #include "driver/uart.h"
 #include "driver/ledc.h"
-#include "button.h"
-
 #include "config.h"
 #include "wifi.h"
 #include "interface/socket_server.h"
