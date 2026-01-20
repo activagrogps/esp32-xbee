@@ -54,20 +54,7 @@ static void mdns_init_service() {
 }
 static char *reset_reason_name(esp_reset_reason_t reason);
 
-static void reset_button_task() {
-    QueueHandle_t button_queue = button_init(PIN_BIT(GPIO_NUM_0));
-    gpio_set_pull_mode(GPIO_NUM_0, GPIO_PULLUP_ONLY);
-    while (true) {
-        button_event_t button_ev;
-        if (xQueueReceive(button_queue, &button_ev, 1000 / portTICK_PERIOD_MS)) {
-            if (button_ev.event == BUTTON_DOWN && button_ev.duration > 5000) {
-                config_reset();
-                vTaskDelay(2000 / portTICK_PERIOD_MS);
-                esp_restart();
-            }
-        }
-    }
-}
+
 
 static void sntp_time_set_handler(struct timeval *tv) {
     ESP_LOGI(TAG, "Synced time from SNTP");
