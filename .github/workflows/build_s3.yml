@@ -1,0 +1,33 @@
+name: Build ESP32-S3
+
+on:
+  workflow_dispatch:      # Manual button only
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    # Install ESP-IDF v5.1.2 (Best for S3)
+    - name: Setup ESP-IDF
+      uses: esp-rs/esp-idf-template/actions/setup-esp-idf@v2
+      with:
+        esp-idf-version: v5.1.2
+        target: esp32s3
+
+    # Build Firmware using the S3 config file
+    - name: Build Firmware
+      run: |
+        idf.py -D SDKCONFIG_DEFAULTS="sdkconfig.defaults.esp32s3" build
+
+    # Save the files for you to download
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: esp32s3-gemini-firmware
+        path: |
+          build/bootloader/bootloader.bin
+          build/partition_table/partition-table.bin
+          build/esp32-xbee.bin
+          build/flasher_args.json
