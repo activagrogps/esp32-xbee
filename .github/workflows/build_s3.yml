@@ -8,20 +8,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-
-    # Install ESP-IDF v5.1.2 (Best for S3)
-    - name: Setup ESP-IDF
-      uses: esp-rs/esp-idf-template/actions/setup-esp-idf@v2
       with:
-        esp-idf-version: v5.1.2
-        target: esp32s3
+        submodules: recursive  # Ensures all code parts are downloaded
 
-    # Build Firmware using the S3 config file
+    # This is the correct tool for C projects
+    - name: Install ESP-IDF
+      uses: espressif/install-esp-idf-action@v1
+      with:
+        version: v5.1.2
+        targets: esp32s3
+
     - name: Build Firmware
       run: |
         idf.py -D SDKCONFIG_DEFAULTS="sdkconfig.defaults.esp32s3" build
 
-    # Save the files for you to download
     - name: Upload Artifacts
       uses: actions/upload-artifact@v4
       with:
