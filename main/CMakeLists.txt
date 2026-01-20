@@ -17,6 +17,6 @@ idf_component_register(SRCS "main.c"
                         "interface/socket_server.c"
                         "protocol/nmea.c"
                     INCLUDE_DIRS "include"
-                    REQUIRES mdns nvs_flash driver esp_wifi esp_event esp_http_server app_update button)
+                    REQUIRES mdns nvs_flash driver esp_wifi esp_event esp_http_server app_update)
 
 spiffs_create_partition_image(www ../www FLASH_IN_PROJECT)
