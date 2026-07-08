@@ -1,0 +1,19 @@
+# Shared defaults for ALL targets (esp32 classic + esp32s3)
+# Values lifted from nebkat's committed sdkconfig - the code depends on them.
+
+CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
+CONFIG_ESPTOOLPY_FLASHSIZE="4MB"
+
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+
+# Required by wifi.c (ip_napt_enable for AP<->STA forwarding)
+CONFIG_LWIP_IP_FORWARD=y
+CONFIG_LWIP_IPV4_NAPT=y
+
+# Required by web_server.c (large config POST requests)
+CONFIG_HTTPD_MAX_REQ_HDR_LEN=2048
+CONFIG_HTTPD_MAX_URI_LEN=128
+
+# mDNS resolution of .local names
+CONFIG_LWIP_DNS_SUPPORT_MDNS_QUERIES=y

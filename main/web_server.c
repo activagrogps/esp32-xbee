@@ -31,7 +31,7 @@
 #include <esp_ota_ops.h>
 #include <esp_netif_sta_list.h>
 #include <stream_stats.h>
-#include <esp32/rom/crc.h>
+#include <esp_rom_crc.h>
 #include <lwip/sockets.h>
 #include "web_server.h"
 
@@ -402,7 +402,7 @@ static esp_err_t file_get_handler(httpd_req_t *req) {
         }
 
         // Update checksum
-        crc = crc32_le(crc, (const uint8_t *)buffer, length);
+        crc = esp_rom_crc32_le(crc, (const uint8_t *)buffer, length);
     } while (length != 0);
 
     // Close file after sending complete
