@@ -29,6 +29,20 @@ jobs:
           idf.py set-target ${{ matrix.target }}
           idf.py build
 
+      # Guard against a build silently producing the wrong target.
+      # Uses sed only: python is not on PATH outside the IDF export env.
+      - name: Verify target matches
+        shell: bash
+        run: |
+          CHIP=$(sed -n 's/.*"chip"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' build/flasher_args.json)
+          BOOTLOADER_OFFSET=$(sed -n 's/.*"bootloader"[[:space:]]*:[[:space:]]*{[[:space:]]*"offset"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' build/flasher_args.json)
+          echo "chip              = $CHIP"
+          echo "bootloader offset = $BOOTLOADER_OFFSET"
+          if [ "$CHIP" != "${{ matrix.target }}" ]; then
+            echo "MISMATCH: asteptat ${{ matrix.target }}, obtinut $CHIP"
+            exit 1
+          fi
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
