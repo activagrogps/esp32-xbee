@@ -1,4 +1,4 @@
-idf_component_register(SRCS "main.c"
+idf_component_register(SRCS "bno085_rvc.c" "web_imu.c" "main.c"
 		"config.c"
 		"core_dump.c"
 		"log.c"

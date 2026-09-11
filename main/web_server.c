@@ -34,7 +34,7 @@
 #include <esp_rom_crc.h>
 #include <lwip/sockets.h>
 #include "web_server.h"
-
+#include "web_imu.h"
 // Max length a file path can have on storage
 #define FILE_PATH_MAX (ESP_VFS_PATH_MAX + CONFIG_SPIFFS_OBJ_NAME_LEN)
 #define FILE_HASH_SUFFIX ".crc"
@@ -754,6 +754,7 @@ static httpd_handle_t web_server_start(void)
 
     httpd_handle_t server = NULL;
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
+        config.max_uri_handlers = 12;
     config.uri_match_fn = httpd_uri_match_wildcard;
 
     // Start the httpd server
@@ -768,7 +769,7 @@ static httpd_handle_t web_server_start(void)
         register_uri_handler(server, "/heap_info", HTTP_GET, heap_info_get_handler);
 
         register_uri_handler(server, "/wifi/scan", HTTP_GET, wifi_scan_get_handler);
-
+        web_imu_register(server);
         register_uri_handler(server, "/*", HTTP_GET, file_get_handler);
     }
 

@@ -38,6 +38,7 @@
 #include "uart.h"
 #include "interface/ntrip.h"
 #include "tasks.h"
+#include "bno085_rvc.h"
 
 static const char *TAG = "MAIN";
 static void mdns_init_service() {
@@ -95,7 +96,7 @@ void app_main()
 
     config_init();
     uart_init();
-
+    bno085_rvc_start();
     esp_reset_reason_t reset_reason = esp_reset_reason();
 
     const esp_app_desc_t *app_desc = esp_ota_get_app_description();
