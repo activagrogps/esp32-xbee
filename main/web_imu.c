@@ -17,10 +17,18 @@ static const char *TAG = "web_imu";
 /* --- Log in RAM, nu in flash -----------------------------------------
  * La 10 Hz, scrisul in flash ar uza partitia degeaba, iar SPIFFS-ul de
  * la 0x210000 e al interfetei web.
- * 3000 esantioane x 10 octeti = 30 KB = 5 minute la 10 Hz.
+ *
+ * 3000 esantioane x 12 octeti = 36 KB (uint32_t + 3x int16_t se
+ * aliniaza la 4, deci 12 nu 10).
+ *
+ * Durata depinde de rata, configurabila din /imu.json?rate=N :
+ *   10 Hz ->  5 minute   (implicit, pentru observat dinamica)
+ *    2 Hz -> 25 minute   (pentru testul de deriva a yaw-ului)
+ *    1 Hz -> 50 minute
  */
 #define LOG_CAPACITY   3000
 #define LOG_RATE_HZ    10
+#define CSV_BATCH      20      /* linii adunate inainte de un chunk HTTP */
 
 typedef struct {
     uint32_t t_ms;
@@ -32,12 +40,27 @@ typedef struct {
 static log_sample_t     *s_log       = NULL;
 static uint16_t          s_log_head  = 0;
 static uint16_t          s_log_count = 0;
-static bool              s_logging   = false;
 static SemaphoreHandle_t s_log_mtx   = NULL;
+
+/* Scris din taskul HTTP, citit din logger_task -> volatile obligatoriu,
+ * altfel compilatorul poate scoate citirea in afara buclei la -O2. */
+static volatile bool     s_logging       = false;
+static volatile uint16_t s_log_period_ms = 1000 / LOG_RATE_HZ;
+
+/* Indexul ultimului cadru pus in log. 0x100 = niciunul inca
+ * (nu incape in uint8_t, de-aia int). */
+static int s_last_idx = 0x100;
 
 static void log_push(const bno085_rvc_data_t *d)
 {
     if (s_log == NULL) return;
+
+    /* Daca senzorul se opreste sau firul se desprinde, bno085_rvc_get()
+     * returneaza la nesfarsit ultimul cadru valid, iar logul s-ar umple
+     * cu copii ale lui - la analiza arata ca un unghi perfect stabil,
+     * exact simptomul pe care vrem sa-l putem distinge. */
+    if ((int) d->index == s_last_idx) return;
+    s_last_idx = d->index;
 
     log_sample_t s = {
         .t_ms     = (uint32_t)(d->timestamp / 1000),
@@ -61,14 +84,15 @@ static void log_clear(void)
     xSemaphoreGive(s_log_mtx);
 }
 
+/* vTaskDelay, nu vTaskDelayUntil: la schimbarea perioadei din mers
+ * xLastWakeTime ar ramane pe grila veche si taskul ar recupera in rafala.
+ * Precizia tickului nu conteaza - timestampul real vine din cadru. */
 static void logger_task(void *arg)
 {
-    const TickType_t period = pdMS_TO_TICKS(1000 / LOG_RATE_HZ);
-    TickType_t last = xTaskGetTickCount();
     bno085_rvc_data_t d;
 
     while (1) {
-        vTaskDelayUntil(&last, period);
+        vTaskDelay(pdMS_TO_TICKS(s_log_period_ms));
         if (!s_logging) continue;
         if (bno085_rvc_get(&d)) log_push(&d);
     }
@@ -78,7 +102,10 @@ static void logger_task(void *arg)
  * Controlul logului trece tot pe aici, prin query string, ca sa nu
  * consume sloturi suplimentare de handler:
  *   /imu.json?log=start | stop | clear
+ *   /imu.json?rate=N        (1..50 Hz)
  *   /imu.json?zero=1
+ *
+ * Se pot combina: /imu.json?rate=2&log=start
  */
 static esp_err_t imu_json_handler(httpd_req_t *req)
 {
@@ -86,6 +113,16 @@ static esp_err_t imu_json_handler(httpd_req_t *req)
     char val[16];
 
     if (httpd_req_get_url_query_str(req, query, sizeof(query)) == ESP_OK) {
+        /* rate inaintea lui log, ca "?rate=2&log=start" sa porneasca
+         * direct cu rata noua, nu cu cea veche pentru o perioada */
+        if (httpd_query_key_value(query, "rate", val, sizeof(val)) == ESP_OK) {
+            int hz = atoi(val);
+            if (hz >= 1 && hz <= 50) {
+                s_log_period_ms = 1000 / hz;
+                ESP_LOGI(TAG, "Rata log: %d Hz (%u ms), capacitate %d s",
+                         hz, s_log_period_ms, LOG_CAPACITY / hz);
+            }
+        }
         if (httpd_query_key_value(query, "log", val, sizeof(val)) == ESP_OK) {
             if      (strcmp(val, "start") == 0) s_logging = true;
             else if (strcmp(val, "stop")  == 0) s_logging = false;
@@ -113,10 +150,19 @@ static esp_err_t imu_json_handler(httpd_req_t *req)
     cJSON_AddNumberToObject(root, "ok",  bno085_rvc_frames_ok());
     cJSON_AddNumberToObject(root, "bad", bno085_rvc_frames_bad());
 
+    uint16_t count;
+    xSemaphoreTake(s_log_mtx, portMAX_DELAY);
+    count = s_log_count;
+    xSemaphoreGive(s_log_mtx);
+
+    uint16_t rate_hz = 1000 / s_log_period_ms;
+
     cJSON *log = cJSON_AddObjectToObject(root, "log");
     cJSON_AddBoolToObject(log,   "running",  s_logging);
-    cJSON_AddNumberToObject(log, "count",    s_log_count);
+    cJSON_AddNumberToObject(log, "count",    count);
     cJSON_AddNumberToObject(log, "capacity", LOG_CAPACITY);
+    cJSON_AddNumberToObject(log, "rate",     rate_hz);
+    cJSON_AddNumberToObject(log, "span_s",   LOG_CAPACITY / rate_hz);
 
     char *out = cJSON_PrintUnformatted(root);
     cJSON_Delete(root);
@@ -129,7 +175,7 @@ static esp_err_t imu_json_handler(httpd_req_t *req)
     return err;
 }
 
-/* --- /imu.csv, trimis pe bucati -------------------------------------- */
+/* --- /imu.csv, trimis pe loturi -------------------------------------- */
 static esp_err_t imu_csv_handler(httpd_req_t *req)
 {
     httpd_resp_set_type(req, "text/csv");
@@ -137,7 +183,8 @@ static esp_err_t imu_csv_handler(httpd_req_t *req)
                        "attachment; filename=imu_log.csv");
     httpd_resp_sendstr_chunk(req, "t_ms,roll,pitch,yaw\r\n");
 
-    char line[64];
+    char batch[CSV_BATCH * 40];
+    int  used = 0;
     uint16_t count, start;
 
     xSemaphoreTake(s_log_mtx, portMAX_DELAY);
@@ -151,12 +198,18 @@ static esp_err_t imu_csv_handler(httpd_req_t *req)
         s = s_log[(start + i) % LOG_CAPACITY];
         xSemaphoreGive(s_log_mtx);
 
-        int n = snprintf(line, sizeof(line), "%u,%.2f,%.2f,%.2f\r\n",
+        int n = snprintf(batch + used, sizeof(batch) - used,
+                         "%u,%.2f,%.2f,%.2f\r\n",
                          (unsigned) s.t_ms,
-                         s.roll_cd / 100.0f,
+                         s.roll_cd  / 100.0f,
                          s.pitch_cd / 100.0f,
-                         s.yaw_cd / 100.0f);
-        if (n > 0) httpd_resp_send_chunk(req, line, n);
+                         s.yaw_cd   / 100.0f);
+        if (n > 0 && n < (int)(sizeof(batch) - used)) used += n;
+
+        if (used > (int) sizeof(batch) - 48 || i == count - 1) {
+            if (used > 0) httpd_resp_send_chunk(req, batch, used);
+            used = 0;
+        }
     }
 
     httpd_resp_send_chunk(req, NULL, 0);
@@ -183,6 +236,8 @@ static const char PAGE_HTML[] =
 "padding:8px 14px;margin:0 6px 6px 0;cursor:pointer;font-size:13px;"
 "text-decoration:none;display:inline-block}"
 "button:hover,a.b:hover{background:#333}"
+"select{background:#2a2a2a;color:#eee;border:1px solid #444;border-radius:4px;"
+"padding:8px;font-size:13px;margin:0 6px 6px 0}"
 "#lg{margin-top:10px;color:#888;font-size:12px}"
 "#bar{height:6px;background:#2a2a2a;border-radius:3px;margin-top:6px;overflow:hidden}"
 "#fill{height:100%;background:#4ade80;width:0}"
@@ -199,6 +254,12 @@ static const char PAGE_HTML[] =
 "<div class=c><div class=l>Rata</div><div class=v id=hz>&mdash;</div></div>"
 "</div>"
 "<button onclick=\"q('zero=1')\">Zero (nivel)</button>"
+"<select id=rt onchange=\"q('rate='+this.value)\">"
+"<option value=10>10 Hz &mdash; 5 min</option>"
+"<option value=5>5 Hz &mdash; 10 min</option>"
+"<option value=2>2 Hz &mdash; 25 min</option>"
+"<option value=1>1 Hz &mdash; 50 min</option>"
+"</select>"
 "<button onclick=\"q('log=start')\">Start log</button>"
 "<button onclick=\"q('log=stop')\">Stop</button>"
 "<button onclick=\"q('log=clear')\">Sterge</button>"
@@ -221,8 +282,11 @@ static const char PAGE_HTML[] =
 " if(pt&&t>pt){var hz=(d.ok-po)*1000/(t-pt);"
 "  document.getElementById('hz').textContent=hz.toFixed(0)+' Hz';}"
 " po=d.ok;pt=t;"
+" document.getElementById('rt').value=d.log.rate;"
+" var m=Math.floor(d.log.span_s/60);"
 " document.getElementById('lg').textContent='log: '+(d.log.running?'pornit':'oprit')"
-"  +' \\u2014 '+d.log.count+' / '+d.log.capacity;"
+"  +' \\u2014 '+d.log.count+' / '+d.log.capacity"
+"  +' @ '+d.log.rate+' Hz (max '+m+' min)';"
 " document.getElementById('fill').style.width="
 "  (100*d.log.count/d.log.capacity)+'%';}"
 "setInterval(function(){fetch('/imu.json').then(r=>r.json()).then(render)},500);"
